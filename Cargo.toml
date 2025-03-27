@@ -1,48 +1,113 @@
 [package]
-name = "llvmenv"
-version = "0.3.2"
-authors = ["Toshiki Teramura <toshiki.teramura@gmail.com>",
-           "Alexander Ronald Altman <alexanderaltman@me.com>"]
-edition = "2018"
+name = "llvmenv-ng"
+version = "0.1.0"
+authors = [
+    "Toshiki Teramura <toshiki.teramura@gmail.com>",
+    "Alexander Ronald Altman <alexanderaltman@me.com>",
+    "AMS21 <ams21.github@gmail.com>",
+]
+edition = "2021"
+rust-version = "1.81"
 
-description   = "Manage LLVM/Clang builds"
-documentation = "https://docs.rs/llvmenv"
-repository    = "https://github.com/llvmenv/llvmenv"
-keywords      = ["env", "llvm", "clang"]
-license       = "MIT"
-readme        = "README.md"
-categories    = []
+description = "Manage LLVM/Clang builds"
+documentation = "https://docs.rs/llvmenv-ng"
+repository = "https://github.com/llvmenv-ng/llvmenv-ng"
+keywords = ["env", "llvm", "clang"]
+license = "MIT"
+readme = "README.md"
+categories = []
 
 [dependencies]
-bytes = "1.1.0"
-dirs = "3.0.1"
-fs_extra = "1.2.0"
-futures = "0.3.8"
-glob = "0.3.0"
-indicatif = "0.15.0"
-itertools = "0.9.0"
-lazy_static = "1.4"
-log = "0.4.11"
-num_cpus = "1.13.0"
-regex = "1.4.2"
-reqwest = { version = "0.11.5", features = ["blocking", "stream"] }
-semver = "0.11"
-serde = "1.0.117"
-serde_derive = "1.0.117"
-shellexpand = "2.0.0"
-simplelog = "0.8.0"
-structopt = "0.3.21"
-tar = "0.4.30"
-tempfile= "3.1.0"
-thiserror = "1.0.22"
-tokio = { version = "1.12.0", features = ["rt-multi-thread"] }
-toml = "0.5.7"
-url = "2.2.0"
-which = { version = "4.0.2", default-features = false }
-xz2 = "0.1.6"
-
-[dev-dependencies]
-paste = "1.0.3"
+bytes = "1.10.1"
+clap = { version = "4.5.35", features = ["cargo", "derive"] }
+dirs = "6.0.0"
+flate2 = "1.1.1"
+fs_extra = "1.3.0"
+futures = "0.3.31"
+glob = "0.3.2"
+indicatif = "0.17.11"
+itertools = "0.14.0"
+lazy_static = "1.5.0"
+log = "0.4.27"
+num_cpus = "1.16.0"
+regex = "1.11.1"
+reqwest = { version = "0.12.15", features = ["blocking", "stream"] }
+semver = "1.0.26"
+serde = "1.0.219"
+serde_derive = "1.0.219"
+shellexpand = "3.1.0"
+simplelog = "0.12.2"
+tar = "0.4.44"
+tempfile = "3.19.1"
+thiserror = "2.0.12"
+tokio = { version = "1.44.1", features = ["rt-multi-thread"] }
+toml = "0.8.20"
+url = "2.5.4"
+which = { version = "7.0.2", default-features = false }
 
 [package.metadata.release]
 dev-version = false
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = "symbols"
+
+# Configure lints
+[lints.rust]
+non_ascii_idents = "deny"
+
+[lints.clippy]
+# Allowed lints
+missing_errors_doc = "allow"
+
+# Enable clippy lint groups
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+# Enable specific clippy restriction lints
+allow_attributes = "warn"
+as_underscore = "warn"
+dbg_macro = "warn"
+empty_drop = "warn"
+empty_enum_variants_with_brackets = "warn"
+empty_structs_with_brackets = "warn"
+format_push_string = "warn"
+if_then_some_else_none = "warn"
+impl_trait_in_params = "warn"
+indexing_slicing = "warn"
+infinite_loop = "warn"
+let_underscore_must_use = "warn"
+mem_forget = "warn"
+missing_asserts_for_indexing = "warn"
+multiple_inherent_impl = "warn"
+needless_raw_strings = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+redundant_type_annotations = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+string_lit_chars_any = "warn"
+string_to_string = "warn"
+try_err = "warn"
+undocumented_unsafe_blocks = "warn"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+unnecessary_self_imports = "warn"
+use_debug = "warn"
+verbose_file_reads = "warn"
+wildcard_enum_match_arm = "warn"
+
+# Denied clippy lints
+exit = "deny"
+expect_used = "deny"
+get_unwrap = "deny"
+missing_assert_message = "deny"
+multiple_unsafe_ops_per_block = "deny"
+panic = "deny"
+panic_in_result_fn = "deny"
+ref_patterns = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+unwrap_in_result = "deny"
+unwrap_used = "deny"

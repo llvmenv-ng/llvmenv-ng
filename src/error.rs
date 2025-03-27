@@ -1,4 +1,8 @@
-use std::{io, path::*, process};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process,
+};
 use thiserror::Error;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -82,11 +86,30 @@ pub enum Error {
         stdout: Option<String>,
         stderr: Option<String>,
     },
+
+    #[error(transparent)]
+    FromUTF8Error {
+        #[from]
+        source: std::string::FromUtf8Error,
+    },
+
+    #[error(transparent)]
+    IndicatifStyleTemplateError {
+        #[from]
+        source: indicatif::style::TemplateError,
+    },
+
+    #[error(transparent)]
+    ShellExpandEnvVarError {
+        #[from]
+        source: shellexpand::LookupError<std::env::VarError>,
+    },
 }
 
 impl Error {
+    #[must_use]
     pub fn invalid_version(version: &str) -> Self {
-        Error::InvalidVersion {
+        Self::InvalidVersion {
             version: version.into(),
         }
     }
@@ -118,7 +141,7 @@ impl CommandExt for process::Command {
     }
 
     fn check_run(&mut self) -> Result<()> {
-        let cmd = format!("{:?}", self);
+        let cmd = format!("{self:?}");
         let st = self
             .status()
             .map_err(|_| Error::CommandNotFound { cmd: cmd.clone() })?;
@@ -144,12 +167,12 @@ impl CommandExt for process::Command {
     }
 
     fn check_output(&mut self) -> Result<(String, String)> {
-        let cmd = format!("{:?}", self);
+        let cmd = format!("{self:?}");
         let output = self
             .output()
             .map_err(|_| Error::CommandNotFound { cmd: cmd.clone() })?;
-        let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
-        let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
+        let stdout = String::from_utf8(output.stdout)?;
+        let stderr = String::from_utf8(output.stderr)?;
         match output.status.code() {
             Some(errno) => {
                 if errno != 0 {

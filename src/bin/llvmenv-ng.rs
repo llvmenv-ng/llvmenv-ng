@@ -1,123 +1,139 @@
-use llvmenv::error::CommandExt;
-use llvmenv::*;
+use llvmenv_ng::{build, config, entry, error::CommandExt, error::Result};
 
-use simplelog::*;
+use clap::{crate_authors, crate_description, crate_name, crate_version, Parser};
+use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, SimpleLogger, TermLogger, TerminalMode};
 use std::{
     env,
     path::PathBuf,
     process::{exit, Command},
 };
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
-#[structopt(
-    name = "llvmenv",
-    about = "Manage multiple LLVM/Clang builds",
-    setting = structopt::clap::AppSettings::ColoredHelp
+#[derive(Debug, Parser)]
+#[command(
+    name = crate_name!(),
+    version = crate_version!(),
+    author = crate_authors!(),
+    about = crate_description!(),
+    long_about = None,
+    propagate_version = true,
+    arg_required_else_help = true,
 )]
 enum LLVMEnv {
-    #[structopt(name = "init", about = "Initialize llvmenv")]
+    #[clap(name = "init", about = "Initialize llvmenv-ng")]
     Init {},
 
-    #[structopt(name = "builds", about = "List usable build")]
+    #[clap(name = "builds", about = "List usable builds")]
     Builds {},
 
-    #[structopt(name = "entries", about = "List entries to be built")]
+    #[clap(name = "entries", about = "List entries to be built")]
     Entries {},
-    #[structopt(name = "build-entry", about = "Build LLVM/Clang")]
+
+    #[clap(name = "build-entry", about = "Build LLVM/Clang")]
     BuildEntry {
         name: String,
-        #[structopt(short = "u", long = "update")]
+        #[clap(short, long)]
         update: bool,
-        #[structopt(short = "c", long = "clean", help = "clean build directory")]
+        #[clap(short, long, help = "clean build directory")]
         clean: bool,
-        #[structopt(
-            short = "G",
+        #[clap(
+            short = 'G',
             long = "builder",
             help = "Overwrite cmake generator setting"
         )]
         builder: Option<String>,
-        #[structopt(
-            short = "d",
+        #[clap(
+            short = 'd',
             long = "discard",
             help = "discard source directory for remote resources"
         )]
         discard: bool,
-        #[structopt(short = "j", long = "nproc")]
+        #[clap(short = 'j', long = "nproc")]
         nproc: Option<usize>,
-        #[structopt(
-            short = "t",
+        #[clap(
+            short = 't',
             long = "build-type",
             help = "Overwrite cmake build type (Debug, Release, RelWithDebInfo, or MinSizeRel)"
         )]
         build_type: Option<entry::BuildType>,
     },
 
-    #[structopt(name = "current", about = "Show the name of current build")]
+    #[clap(name = "current", about = "Show the name of current build")]
     Current {
-        #[structopt(short = "v", long = "verbose")]
+        #[clap(short, long)]
         verbose: bool,
     },
-    #[structopt(name = "prefix", about = "Show the prefix of the current build")]
+
+    #[clap(name = "prefix", about = "Show the prefix of the current build")]
     Prefix {
-        #[structopt(short = "v", long = "verbose")]
+        #[clap(short, long)]
         verbose: bool,
     },
-    #[structopt(name = "version", about = "Show the base version of the current build")]
+
+    #[clap(name = "version", about = "Show the base version of the current build")]
     Version {
-        #[structopt(short = "n", long = "name")]
+        #[clap(short = 'n', long = "name")]
         name: Option<String>,
-        #[structopt(long = "major")]
+        #[clap(long = "major")]
         major: bool,
-        #[structopt(long = "minor")]
+        #[clap(long = "minor")]
         minor: bool,
-        #[structopt(long = "patch")]
+        #[clap(long = "patch")]
         patch: bool,
     },
 
-    #[structopt(name = "global", about = "Set the build to use (global)")]
+    #[clap(name = "global", about = "Set the build to use (global)")]
     Global { name: String },
-    #[structopt(name = "local", about = "Set the build to use (local)")]
+
+    #[clap(name = "local", about = "Set the build to use (local)")]
     Local {
         name: String,
-        #[structopt(short = "p", long = "path", parse(from_os_str))]
+        #[clap(short = 'p', long = "path")]
         path: Option<PathBuf>,
     },
 
-    #[structopt(name = "archive", about = "archive build into *.tar.xz (require pixz)")]
+    #[clap(name = "archive", about = "archive build into *.tar.xz (require pixz)")]
     Archive {
         name: String,
-        #[structopt(short = "v", long = "verbose")]
-        verbose: bool,
-    },
-    #[structopt(name = "expand", about = "expand archive")]
-    Expand {
-        #[structopt(parse(from_os_str))]
-        path: PathBuf,
-        #[structopt(short = "v", long = "verbose")]
+        #[clap(short, long)]
         verbose: bool,
     },
 
-    #[structopt(name = "edit", about = "Edit llvmenv configure in your editor")]
+    #[clap(name = "expand", about = "expand archive")]
+    Expand {
+        path: PathBuf,
+        #[clap(short, long)]
+        verbose: bool,
+    },
+
+    #[clap(name = "edit", about = "Edit llvmenv-ng configure in your editor")]
     Edit {},
 
-    #[structopt(name = "zsh", about = "Setup Zsh integration")]
+    #[clap(name = "zsh", about = "Setup Zsh integration")]
     Zsh {},
 }
 
-fn main() -> error::Result<()> {
+fn main() -> Result<()> {
     TermLogger::init(
         LevelFilter::Info,
-        ConfigBuilder::new().set_time_to_local(true).build(),
+        ConfigBuilder::new()
+            .set_time_offset_to_local()
+            .unwrap()
+            .build(),
         TerminalMode::Mixed,
+        ColorChoice::Auto,
     )
-    .or(SimpleLogger::init(
-        LevelFilter::Info,
-        ConfigBuilder::new().set_time_to_local(true).build(),
-    ))
+    .or_else(|_| {
+        SimpleLogger::init(
+            LevelFilter::Info,
+            ConfigBuilder::new()
+                .set_time_offset_to_local()
+                .unwrap()
+                .build(),
+        )
+    })
     .unwrap();
 
-    let opt = LLVMEnv::from_args();
+    let opt = LLVMEnv::parse();
     match opt {
         LLVMEnv::Init {} => config::init_config()?,
 
@@ -134,15 +150,17 @@ fn main() -> error::Result<()> {
             }
         }
 
-        LLVMEnv::Entries {} => {
-            if let Ok(entries) = entry::load_entries() {
+        LLVMEnv::Entries {} => match entry::load_entries() {
+            Ok(entries) => {
                 for entry in &entries {
                     println!("{}", entry.name());
                 }
-            } else {
-                panic!("No entries. Please define entries in $XDG_CONFIG_HOME/llvmenv/entry.toml");
             }
-        }
+            Err(e) => {
+                panic!("{}", e);
+            }
+        },
+
         LLVMEnv::BuildEntry {
             name,
             update,
@@ -154,23 +172,40 @@ fn main() -> error::Result<()> {
         } => {
             let mut entry = entry::load_entry(&name)?;
             let nproc = nproc.unwrap_or_else(num_cpus::get);
+
             if let Some(builder) = builder {
                 entry.set_builder(&builder)?;
             }
+
             if let Some(build_type) = build_type {
                 entry.set_build_type(build_type)?;
             }
+
             if discard {
-                entry.clean_cache_dir().unwrap();
+                if let Err(e) = entry.clean_cache_dir() {
+                    println!("{}", e);
+                }
             }
-            entry.checkout().unwrap();
+
+            if let Err(e) = entry.checkout() {
+                println!("{}", e);
+            };
+
             if update {
-                entry.update().unwrap();
+                if let Err(e) = entry.update() {
+                    println!("{}", e);
+                };
             }
+
             if clean {
-                entry.clean_build_dir().unwrap();
+                if let Err(e) = entry.clean_build_dir() {
+                    println!("{}", e);
+                };
             }
-            entry.build(nproc).unwrap();
+
+            if let Err(e) = entry.build(nproc) {
+                println!("{}", e);
+            };
         }
 
         LLVMEnv::Current { verbose } => {
@@ -182,6 +217,7 @@ fn main() -> error::Result<()> {
                 }
             }
         }
+
         LLVMEnv::Prefix { verbose } => {
             let build = build::seek_build()?;
             println!("{}", build.prefix().display());
@@ -191,6 +227,7 @@ fn main() -> error::Result<()> {
                 }
             }
         }
+
         LLVMEnv::Version {
             name,
             major,
@@ -223,6 +260,7 @@ fn main() -> error::Result<()> {
             let build = get_existing_build(&name);
             build.set_global()?;
         }
+
         LLVMEnv::Local { name, path } => {
             let build = get_existing_build(&name);
             let path = path.unwrap_or_else(|| env::current_dir().unwrap());
@@ -233,6 +271,7 @@ fn main() -> error::Result<()> {
             let build = get_existing_build(&name);
             build.archive(verbose)?;
         }
+
         LLVMEnv::Expand { path, verbose } => {
             build::expand(&path, verbose)?;
         }

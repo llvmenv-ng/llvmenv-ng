@@ -1,0 +1,44 @@
+name: Audit
+
+on:
+  pull_request:
+    branches: ["*"]
+    paths:
+      # Workflow file itself
+      - '.github/workflows/audit.yml'
+      # Cargo files
+      - '**/Cargo.toml'
+  push:
+    branches: ["main", "develop"]
+    paths:
+      # Workflow file itself
+      - '.github/workflows/audit.yml'
+      # Cargo files
+      - '**/Cargo.toml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Audit Rust Dependencies
+      uses: actions-rust-lang/audit@v1
+
+  cargo-deny:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - uses: EmbarkStudios/cargo-deny-action@v2
+      with:
+        rust-version: stable
+        command: check bans licenses sources

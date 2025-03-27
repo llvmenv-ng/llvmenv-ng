@@ -1,7 +1,7 @@
 //! Manage LLVM/Clang builds
 
 use glob::glob;
-use log::*;
+use log::info;
 use regex::Regex;
 use semver::Version;
 use std::{
@@ -11,30 +11,34 @@ use std::{
     process::Command,
 };
 
-use crate::config::*;
-use crate::error::*;
+use crate::{
+    config::{config_dir, data_dir},
+    error::{CommandExt, Error, FileIoConvert, Result},
+};
 
 const LLVMENV_FN: &str = ".llvmenv";
 
 #[derive(Debug)]
 pub struct Build {
     name: String,             // name and id of build
-    prefix: PathBuf,          // the path where the LLVM build realy exists
+    prefix: PathBuf,          // the path where the LLVM build really exists
     llvmenv: Option<PathBuf>, // path of .llvmenv
 }
 
 impl Build {
+    #[must_use]
     fn system() -> Self {
-        Build {
+        Self {
             name: "system".into(),
             prefix: PathBuf::from("/usr"),
             llvmenv: None,
         }
     }
 
+    #[must_use]
     pub fn from_path(path: &Path) -> Self {
         let name = path.file_name().unwrap().to_str().unwrap();
-        Build {
+        Self {
             name: name.into(),
             prefix: path.to_owned(),
             llvmenv: None,
@@ -45,30 +49,32 @@ impl Build {
         if name == "system" {
             return Ok(Self::system());
         }
-        Ok(Build {
+
+        Ok(Self {
             name: name.into(),
             prefix: data_dir()?.join(name),
             llvmenv: None,
         })
     }
 
+    #[must_use]
     pub fn exists(&self) -> bool {
         self.prefix.is_dir()
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn prefix(&self) -> &Path {
         &self.prefix
     }
 
+    #[must_use]
     pub fn env_path(&self) -> Option<&Path> {
-        match self.llvmenv {
-            Some(ref path) => Some(path.as_path()),
-            None => None,
-        }
+        self.llvmenv.as_deref()
     }
 
     pub fn set_global(&self) -> Result<()> {
@@ -116,13 +122,7 @@ fn parse_version(version: &str) -> Result<Version> {
 fn local_builds() -> Result<Vec<Build>> {
     Ok(glob(data_dir()?.join("*/bin").to_str().unwrap())
         .unwrap()
-        .filter_map(|path| {
-            if let Ok(path) = path {
-                path.parent().map(|path| Build::from_path(path))
-            } else {
-                None
-            }
-        })
+        .filter_map(|path| path.map_or(None, |path| path.parent().map(Build::from_path)))
         .collect())
 }
 
@@ -157,7 +157,8 @@ fn load_global_env() -> Result<Option<Build>> {
 
 pub fn seek_build() -> Result<Build> {
     // Seek .llvmenv from $PWD
-    let mut path = env::current_dir().unwrap();
+    let mut path = env::current_dir()?;
+
     loop {
         if let Some(mut build) = load_local_env(&path)? {
             build.llvmenv = Some(path.join(LLVMENV_FN));
@@ -168,11 +169,13 @@ pub fn seek_build() -> Result<Build> {
             None => break,
         };
     }
+
     // check global setting
     if let Some(mut build) = load_global_env()? {
         build.llvmenv = Some(config_dir()?.join(LLVMENV_FN));
         return Ok(build);
     }
+
     Ok(Build::system())
 }
 
@@ -197,6 +200,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(clippy::panic_in_result_fn)]
     fn test_parse_version() -> Result<()> {
         // https://github.com/termoshtt/llvmenv/issues/36
         let version =
@@ -206,6 +210,12 @@ mod tests {
         let version = "clang version 10.0.0 \
             (https://github.com/llvm-mirror/clang 65acf43270ea2894dffa0d0b292b92402f80c8cb)";
         assert_eq!(parse_version(version)?, Version::new(10, 0, 0));
+
+        let version = "clang version 19.1.7
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /usr/bin";
+        assert_eq!(parse_version(version)?, Version::new(19, 1, 7));
 
         let version = "123+456y0";
         assert!(matches!(
